@@ -42,7 +42,27 @@ def write_mp3_file(output_text, mp3_output_name, debug=0):
 
     return;
 
+
+
 def process_file( file_name, debug=0 ):
+
+    special_charicters = create_special_charicters()
+    def process_line( line ):
+        # This processes a line and removes or replaces any special charicters with its english prenounciation.
+
+        for latex, text in special_charicters.iteritems():
+            line = line.replace(latex, text)
+
+        import re
+        line = re.sub("\$[^\$]*\$", "", line)
+
+        line = line.replace("\\alttext{", "")
+        line = line.replace("}", "")
+
+        return line
+
+
+    process = process_line
 
     file = open( file_name, 'r')
     output_text = ""
@@ -61,35 +81,35 @@ def process_file( file_name, debug=0 ):
         if line.startswith( "\\title{" ):
             tmp_line = line.strip()
             new_line = tmp_line[7:-1].strip() + ".\n"
-            output_text += new_line
+            output_text += process(new_line)
             continue
 
         if line.startswith( "\\author{" ):
             tmp_line = line.strip()
             new_line = tmp_line[8:-1].strip() + ".\n"
-            output_text += new_line
+            output_text += process(new_line)
             continue
 
         if line.startswith( "\\begin{abstract}" ):
             in_abstract=True
-            abstract = line[16:]
+            abstract = process(line[16:])
             continue
 
         if in_abstract:
             tmp_line = line.strip()
             if tmp_line.endswith( "\\end{abstract}" ):
                 in_abstract = False
-                abstract = abstract + tmp_line[:-14] + "\n"
+                abstract = abstract + process(tmp_line[:-14]) + "\n"
                 output_text = output_text + abstract 
                 continue
             else:
-                abstract = abstract + tmp_line
+                abstract = abstract + process(tmp_line)
                 continue
 
         if line.startswith( "\\section{" ):
             tmp_line = line.strip()
             new_line = tmp_line[9:-1] + ".\n"
-            output_text += new_line
+            output_text += process(new_line)
             continue
 
 
@@ -101,33 +121,39 @@ def process_file( file_name, debug=0 ):
                 in_figure = True
                 continue
 
-        if line.startswith("\maketitle"):
-            continue
-        if line.startswith("\\end{document}"):
-            continue
-        if line.startswith("\\usepackage"):
-            continue
-        if line.startswith("\\documentclass"):
+        tex_commands = [
+            "maketitle",
+            "end{document}",
+            "usepackage",
+            "documentclass",
+            "newcommand",
+            ]
+
+        tex_command_line = False
+        for tex_command in tex_commands:
+            if line.startswith( "\\" + tex_command ):
+                tex_command_line = True
+        if tex_command_line:
             continue
 
         if in_figure:
             tmp_line = line.strip()
-            if tmp_line.startswith( "%description{" ):
-                figure_text = figure_text + tmp_line[13:-1].strip() + "\n"
+            if tmp_line.startswith( "\\alttext" ):
+                figure_text = figure_text + process(tmp_line[9:-1].strip()) + "\n"
                 continue
             if tmp_line.startswith( "\\caption{" ):
-                figure_text = figure_text + tmp_line[9:-1].strip() + "\n"
+                figure_text = figure_text + process(tmp_line[9:-1].strip()) + "\n"
                 continue
 
             if tmp_line.startswith( "\\end{figure}" ):
-                output_text += figure_text + "\n \n"
+                output_text += process(figure_text) + "\n \n"
                 in_figure = False
                 continue
         else:
             if line.startswith( "%" ):
                 continue
             else:
-                output_text += line
+                output_text += process(line)
                 continue
             
 
@@ -137,6 +163,18 @@ def process_file( file_name, debug=0 ):
        
     return output_text
 
+
+def create_special_charicters():
+    special_charicter_dict = {}
+    
+    special_charicters = [
+    'alpha',
+    ]
+
+    for charicter in special_charicters:
+        special_charicter_dict["\\" + charicter] = charicter
+
+    return special_charicter_dict
 
 
 def get_inputs(debug=0):
